@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/DraganM03/not_udemy_backend/issues"
   },
-  "homepage": "https://github.com/DraganM03/not_udemy_backend#readme"
+  "homepage": "https://github.com/DraganM03/not_udemy_backend#readme",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
 }
