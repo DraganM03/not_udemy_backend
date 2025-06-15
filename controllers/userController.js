@@ -1,25 +1,28 @@
 import jwt from 'jsonwebtoken';
+import bcrypt, { genSalt } from 'bcrypt';
+
 const SECRET_KEY = process.env.SECRET_KEY;
 // dummy data for testing
+const salt = await genSalt(12);
 const users = [
   {
     email: 'dragan@gmail.com',
-    password: 'dragan123',
+    password: await bcrypt.hash('dragan123', salt),
   },
   {
     email: 'jelena@gmail.com',
-    password: 'jelena123',
+    password: await bcrypt.hash('jelena123', salt),
   },
   {
     email: 'nikola@gmail.com',
-    password: 'nikola123',
+    password: await bcrypt.hash('nikola123', salt),
   },
 ];
 
 /**
  * Authenticates the user and returns the JWT if successful
  */
-export const loginUser = (req, res, next) => {
+export const loginUser = async (req, res, next) => {
   try {
     if (!req.body || !req.body.email || !req.body.password) {
       const error = new Error('Bad Request: Email and password are required');
@@ -28,7 +31,8 @@ export const loginUser = (req, res, next) => {
     }
     const user = users.find(
       (user) =>
-        user.email === req.body.email && user.password === req.body.password
+        user.email === req.body.email &&
+        bcrypt.compareSync(req.body.password, user.password) //user.password === req.body.password
     );
     if (user) {
       const token = jwt.sign(
@@ -56,7 +60,7 @@ export const loginUser = (req, res, next) => {
 /**
  * Register a new user and returns a jwt
  */
-export const registerUser = (req, res, next) => {
+export const registerUser = async (req, res, next) => {
   try {
     if (
       !req.body ||
@@ -75,7 +79,7 @@ export const registerUser = (req, res, next) => {
 
     const user = {
       email: req.body.email,
-      password: req.body.password,
+      password: await bcrypt.hash(req.body.password, salt),
       first_name: req.body.first_name,
       last_name: req.body.last_name,
       role_id: parseInt(req.body.role_id),
