@@ -137,3 +137,6 @@ dist
 
 # basics
 .history
+static/images/*
+static/thumbnails/*
+static/videos/*
