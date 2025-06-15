@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 import notFound from './middleware/notFound.js';
 import errorHandler from './middleware/errorHandler.js';
@@ -13,6 +15,10 @@ import { verifyToken } from './middleware/verifyToken.js';
  */
 const PORT = process.env.PORT || 3000;
 const SECRET_KEY = process.env.SECRET_KEY;
+
+const __filename = fileURLToPath(import.meta.url); // current file url
+const __dirname = path.dirname(__filename);
+
 const app = express();
 
 /* Server Middleware */
@@ -21,6 +27,11 @@ app.use(express.json());
 app.use(logger);
 
 /* Routers */
+app.use(
+  '/static/images',
+  express.static(path.join(__dirname, 'static/images/'))
+);
+
 app.use('/user', users);
 
 app.get('/test', verifyToken, (req, res) => {

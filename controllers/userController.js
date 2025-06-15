@@ -83,12 +83,14 @@ export const registerUser = async (req, res, next) => {
       first_name: req.body.first_name,
       last_name: req.body.last_name,
       role_id: parseInt(req.body.role_id),
+      profile_image: req.file.path,
     };
 
     const user_exists = users.some((user) => user.email === req.body.email);
 
     if (!user_exists) {
       users.push(user);
+      console.log(users);
       const token = jwt.sign(
         { user },
         SECRET_KEY,
