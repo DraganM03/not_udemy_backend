@@ -3,19 +3,18 @@ import bcrypt, { genSalt } from 'bcrypt';
 
 const SECRET_KEY = process.env.SECRET_KEY;
 // dummy data for testing
-const salt = await genSalt(12);
 const users = [
   {
     email: 'dragan@gmail.com',
-    password: await bcrypt.hash('dragan123', salt),
+    password: await bcrypt.hash('dragan123', await genSalt(12)),
   },
   {
     email: 'jelena@gmail.com',
-    password: await bcrypt.hash('jelena123', salt),
+    password: await bcrypt.hash('jelena123', await genSalt(12)),
   },
   {
     email: 'nikola@gmail.com',
-    password: await bcrypt.hash('nikola123', salt),
+    password: await bcrypt.hash('nikola123', await genSalt(12)),
   },
 ];
 
@@ -62,6 +61,7 @@ export const loginUser = async (req, res, next) => {
  */
 export const registerUser = async (req, res, next) => {
   try {
+    const salt = await genSalt(12);
     if (
       !req.body ||
       !req.body.email ||
@@ -83,7 +83,7 @@ export const registerUser = async (req, res, next) => {
       first_name: req.body.first_name,
       last_name: req.body.last_name,
       role_id: parseInt(req.body.role_id),
-      profile_image: req.file.path,
+      profile_image: req.file.path.replace(/[\\]/g, '/'),
     };
 
     const user_exists = users.some((user) => user.email === req.body.email);
