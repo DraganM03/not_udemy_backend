@@ -2,111 +2,185 @@ import jwt from 'jsonwebtoken';
 import bcrypt, { genSalt } from 'bcrypt';
 
 const SECRET_KEY = process.env.SECRET_KEY;
-// dummy data for testing
+const SALT_ROUNDS = 12;
+const TOKEN_EXPIRY = '24h';
+
+// Dummy data for testing
 const users = [
   {
     email: 'dragan@gmail.com',
-    password: await bcrypt.hash('dragan123', await genSalt(12)),
+    password: await bcrypt.hash('dragan123', await genSalt(SALT_ROUNDS)),
   },
   {
     email: 'jelena@gmail.com',
-    password: await bcrypt.hash('jelena123', await genSalt(12)),
+    password: await bcrypt.hash('jelena123', await genSalt(SALT_ROUNDS)),
   },
   {
     email: 'nikola@gmail.com',
-    password: await bcrypt.hash('nikola123', await genSalt(12)),
+    password: await bcrypt.hash('nikola123', await genSalt(SALT_ROUNDS)),
   },
 ];
+
+/**
+ *  Helper function to validate required fields
+ */
+const validateRequiredFields = (body, requiredFields) => {
+  const missingFields = requiredFields.filter((field) => !body || !body[field]);
+  return {
+    isValid: missingFields.length === 0,
+    missingFields,
+  };
+};
+
+/**
+ * Create error with status
+ */
+const createError = (message, status) => {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+};
+
+/**
+ * Generate JWT token
+ */
+const generateToken = (payload) => {
+  return new Promise((resolve, reject) => {
+    jwt.sign(
+      payload,
+      SECRET_KEY,
+      { expiresIn: TOKEN_EXPIRY },
+      (error, token) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(token);
+        }
+      }
+    );
+  });
+};
+
+/**
+ * Find user by email
+ */
+const findUserByEmail = (email) => {
+  return users.find((user) => user.email === email);
+};
+
+/**
+ *  Verify password
+ */
+const verifyPassword = async (plainPassword, hashedPassword) => {
+  return bcrypt.compare(plainPassword, hashedPassword);
+};
 
 /**
  * Authenticates the user and returns the JWT if successful
  */
 export const loginUser = async (req, res, next) => {
   try {
-    if (!req.body || !req.body.email || !req.body.password) {
-      const error = new Error('Bad Request: Email and password are required');
-      error.status = 400;
-      return next(error);
-    }
-    const user = users.find(
-      (user) =>
-        user.email === req.body.email &&
-        bcrypt.compareSync(req.body.password, user.password) //user.password === req.body.password
-    );
-    if (user) {
-      const token = jwt.sign(
-        { user },
-        SECRET_KEY,
-        { expiresIn: '24h' },
-        (error, token) => {
-          res.status(200).json({
-            token: token,
-          });
-        }
+    const { email, password } = req.body || {};
+
+    // Validate required fields
+    const validation = validateRequiredFields(req.body, ['email', 'password']);
+    if (!validation.isValid) {
+      return next(
+        createError('Bad Request: Email and password are required', 400)
       );
-    } else {
-      const error = new Error(
-        "Unauthorized: User with those credentials doesn't exist"
-      );
-      error.status = 401;
-      return next(error);
     }
+
+    // Find user by email
+    const user = findUserByEmail(email);
+    if (!user) {
+      return next(
+        createError(
+          "Unauthorized: User with those credentials doesn't exist",
+          401
+        )
+      );
+    }
+
+    // Verify password
+    const isPasswordValid = await verifyPassword(password, user.password);
+    if (!isPasswordValid) {
+      return next(
+        createError(
+          "Unauthorized: User with those credentials doesn't exist",
+          401
+        )
+      );
+    }
+
+    // Generate token
+    const token = await generateToken({ user });
+
+    res.status(200).json({ token });
   } catch (error) {
     return next(error);
   }
 };
 
 /**
- * Register a new user and returns a jwt
+ * Register a new user and returns a JWT
  */
 export const registerUser = async (req, res, next) => {
   try {
-    const salt = await genSalt(12);
-    if (
-      !req.body ||
-      !req.body.email ||
-      !req.body.password ||
-      !req.body.first_name ||
-      !req.body.last_name ||
-      !req.body.role_id
-    ) {
-      const error = new Error(
-        'Bad Request: The following user fields (email, password, first_name, last_name, role_id) are required.'
+    const { email, password, first_name, last_name, role_id } = req.body || {};
+    const requiredFields = [
+      'email',
+      'password',
+      'first_name',
+      'last_name',
+      'role_id',
+    ];
+
+    // Validate required fields
+    const validation = validateRequiredFields(req.body, requiredFields);
+    if (!validation.isValid) {
+      return next(
+        createError(
+          `Bad Request: The following user fields (${requiredFields.join(
+            ', '
+          )}) are required.`,
+          400
+        )
       );
-      error.status = 400;
-      return next(error);
     }
 
-    const user = {
-      email: req.body.email,
-      password: await bcrypt.hash(req.body.password, salt),
-      first_name: req.body.first_name,
-      last_name: req.body.last_name,
-      role_id: parseInt(req.body.role_id),
-      profile_image: req.file.path.replace(/[\\]/g, '/'),
+    // Check if user already exists
+    const existingUser = findUserByEmail(email);
+    if (existingUser) {
+      return next(
+        createError('Conflict: User with that email already exists', 409)
+      );
+    }
+
+    // Hash password
+    const salt = await genSalt(SALT_ROUNDS);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create new user object
+    const newUser = {
+      email,
+      password: hashedPassword,
+      first_name,
+      last_name,
+      role_id: parseInt(role_id),
+      profile_image: '/' + req.file?.path?.replace(/[\\]/g, '/') || null,
     };
 
-    const user_exists = users.some((user) => user.email === req.body.email);
+    // Add user to array
+    users.push(newUser);
+    console.log('New user registered:', { email, first_name, last_name });
 
-    if (!user_exists) {
-      users.push(user);
-      console.log(users);
-      const token = jwt.sign(
-        { user },
-        SECRET_KEY,
-        { expiresIn: '24h' },
-        (error, token) => {
-          res.status(200).json({
-            message: 'User registered successfuly',
-            token: token,
-          });
-        }
-      );
-    } else {
-      const error = new Error('Conflict: User with that email already exist');
-      error.status = 409;
-      return next(error);
-    }
+    // Generate token
+    const token = await generateToken({ user: newUser });
+
+    res.status(201).json({
+      message: 'User registered successfully',
+      token,
+    });
   } catch (error) {
     return next(error);
   }

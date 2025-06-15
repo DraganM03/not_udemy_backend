@@ -10,6 +10,7 @@ import logger from './middleware/logger.js';
 
 import users from './routes/users.js';
 import { verifyToken } from './middleware/verifyToken.js';
+
 /**
  *  Server Init
  */
@@ -26,12 +27,23 @@ app.use(cors());
 app.use(express.json());
 app.use(logger);
 
-/* Routers */
+/* Static Routes */
 app.use(
   '/static/images',
   express.static(path.join(__dirname, 'static/images/'))
 );
 
+app.use(
+  '/static/thumbnails',
+  express.static(path.join(__dirname, 'static/thumbnails/'))
+);
+
+app.use(
+  '/static/videos',
+  express.static(path.join(__dirname, 'static/videos/'))
+);
+
+/* Routers */
 app.use('/user', users);
 
 app.get('/test', verifyToken, (req, res) => {
