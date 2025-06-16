@@ -47,12 +47,27 @@ const generateToken = (payload) => {
 };
 
 /**
+ *  Verify password
+ */
+const verifyPassword = async (plainPassword, hashedPassword) => {
+  return bcrypt.compare(plainPassword, hashedPassword);
+};
+
+/**
+ *  Process file path for consistent format
+ */
+const processFilePath = (filePath) => {
+  if (!filePath) return null;
+  const normalizedPath = filePath.replace(/[\\]/g, '/');
+  return '/' + normalizedPath;
+};
+
+/**
  * Find user by email
  */
 const findUserByEmail = async (email) => {
   const [rows] = await pool.query(
-    `
-    SELECT 
+    `SELECT 
       users.id, 
       users.email,
       users.password,
@@ -62,17 +77,15 @@ const findUserByEmail = async (email) => {
       users.profile_image, 
       roles.name AS role_name
     FROM users
-    INNER JOIN roles
-    ON users.role_id = roles.id
-    WHERE users.email = ?
-    `,
+    INNER JOIN roles ON users.role_id = roles.id
+    WHERE users.email = ?`,
     [email]
   );
   return rows[0] || null;
 };
 
 /**
- *  Insers a new user into the database
+ *  Insert a new user into the database
  */
 const createNewUser = async (newUser) => {
   const params = [
@@ -85,21 +98,11 @@ const createNewUser = async (newUser) => {
     newUser.bio,
   ];
 
-  const user = pool.query(
-    `
-    INSERT INTO users(email, password, first_name, last_name, role_id, profile_image, bio)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    `,
-    [...params]
+  return pool.query(
+    `INSERT INTO users(email, password, first_name, last_name, role_id, profile_image, bio)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    params
   );
-  return user;
-};
-
-/**
- *  Verify password
- */
-const verifyPassword = async (plainPassword, hashedPassword) => {
-  return bcrypt.compare(plainPassword, hashedPassword);
 };
 
 /**
@@ -119,7 +122,8 @@ export const loginUser = async (req, res, next) => {
 
     // Find user by email
     const user = await findUserByEmail(email);
-    console.log(user);
+    console.log('Login attempt for user:', user?.email);
+
     if (!user) {
       return next(
         createError(
@@ -128,6 +132,7 @@ export const loginUser = async (req, res, next) => {
         )
       );
     }
+
     // Verify password
     const isPasswordValid = await verifyPassword(password, user.password);
     if (!isPasswordValid) {
@@ -141,7 +146,6 @@ export const loginUser = async (req, res, next) => {
 
     // Generate token
     const token = await generateToken({ user });
-
     res.status(200).json({ token });
   } catch (error) {
     return next(error);
@@ -165,19 +169,16 @@ export const registerUser = async (req, res, next) => {
     // Validate required fields
     const validation = validateRequiredFields(req.body, requiredFields);
     if (!validation.isValid) {
-      return next(
-        createError(
-          `Bad Request: The following user fields (${requiredFields.join(
-            ', '
-          )}) are required.`,
-          400
-        )
-      );
+      const errorMessage = `Bad Request: The following user fields (${requiredFields.join(
+        ', '
+      )}) are required.`;
+      return next(createError(errorMessage, 400));
     }
 
     // Check if user already exists
     const existingUser = await findUserByEmail(email);
-    console.log(existingUser);
+    console.log('Registration check - user exists:', !!existingUser);
+
     if (existingUser) {
       return next(
         createError('Conflict: User with that email already exists', 409)
@@ -195,17 +196,13 @@ export const registerUser = async (req, res, next) => {
       first_name,
       last_name,
       role_id: parseInt(role_id),
-      profile_image: req.file?.path?.replace(/[\\]/g, '/') || null,
+      profile_image: processFilePath(req.file?.path),
       bio: '',
     };
 
-    newUser.profile_image = newUser.profile_image
-      ? '/' + newUser.profile_image
-      : newUser.profile_image;
-
-    // Add user to array
-    const user = await createNewUser(newUser);
-    console.log('New user registered:', user);
+    // Add user to database
+    const result = await createNewUser(newUser);
+    console.log('New user registered:', email);
 
     // Generate token
     const token = await generateToken({ user: newUser });
@@ -243,6 +240,7 @@ export const updateUser = async (req, res, next) => {
       );
     }
 
+    // Build dynamic update fields
     const fields = [];
     const values = [];
 
@@ -268,19 +266,22 @@ export const updateUser = async (req, res, next) => {
       values.push(hashedPassword);
     }
 
-    let profile_image = req.file?.path?.replace(/[\\]/g, '/') || null;
-    profile_image = profile_image ? '/' + profile_image : profile_image;
+    // Handle profile image
+    const profile_image = processFilePath(req.file?.path);
     if (profile_image !== null) {
       fields.push('profile_image = ?');
       values.push(profile_image);
     }
 
+    // Check if there are fields to update
     if (fields.length === 0) {
       return next(createError('No fields to update.', 400));
     }
 
+    // Add user id for WHERE clause
     values.push(id);
 
+    // Execute update query
     const [result] = await pool.query(
       `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
       values
