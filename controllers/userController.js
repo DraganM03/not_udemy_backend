@@ -1,25 +1,10 @@
 import jwt from 'jsonwebtoken';
 import bcrypt, { genSalt } from 'bcrypt';
+import pool from '../database.js';
 
 const SECRET_KEY = process.env.SECRET_KEY;
 const SALT_ROUNDS = 12;
 const TOKEN_EXPIRY = '24h';
-
-// Dummy data for testing
-const users = [
-  {
-    email: 'dragan@gmail.com',
-    password: await bcrypt.hash('dragan123', await genSalt(SALT_ROUNDS)),
-  },
-  {
-    email: 'jelena@gmail.com',
-    password: await bcrypt.hash('jelena123', await genSalt(SALT_ROUNDS)),
-  },
-  {
-    email: 'nikola@gmail.com',
-    password: await bcrypt.hash('nikola123', await genSalt(SALT_ROUNDS)),
-  },
-];
 
 /**
  *  Helper function to validate required fields
@@ -64,8 +49,50 @@ const generateToken = (payload) => {
 /**
  * Find user by email
  */
-const findUserByEmail = (email) => {
-  return users.find((user) => user.email === email);
+const findUserByEmail = async (email) => {
+  const [rows] = await pool.query(
+    `
+    SELECT 
+      users.id, 
+      users.email,
+      users.password,
+      users.bio, 
+      users.first_name, 
+      users.last_name, 
+      users.profile_image, 
+      roles.name AS role_name
+    FROM users
+    INNER JOIN roles
+    ON users.role_id = roles.id
+    WHERE users.email = ?
+    `,
+    [email]
+  );
+  return rows[0] || null;
+};
+
+/**
+ *  Insers a new user into the database
+ */
+const createNewUser = async (newUser) => {
+  const params = [
+    newUser.email,
+    newUser.password,
+    newUser.first_name,
+    newUser.last_name,
+    newUser.role_id,
+    newUser.profile_image,
+    newUser.bio,
+  ];
+
+  const user = pool.query(
+    `
+    INSERT INTO users(email, password, first_name, last_name, role_id, profile_image, bio)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    `,
+    [...params]
+  );
+  return user;
 };
 
 /**
@@ -91,7 +118,8 @@ export const loginUser = async (req, res, next) => {
     }
 
     // Find user by email
-    const user = findUserByEmail(email);
+    const user = await findUserByEmail(email);
+    console.log(user);
     if (!user) {
       return next(
         createError(
@@ -100,7 +128,6 @@ export const loginUser = async (req, res, next) => {
         )
       );
     }
-
     // Verify password
     const isPasswordValid = await verifyPassword(password, user.password);
     if (!isPasswordValid) {
@@ -149,7 +176,8 @@ export const registerUser = async (req, res, next) => {
     }
 
     // Check if user already exists
-    const existingUser = findUserByEmail(email);
+    const existingUser = await findUserByEmail(email);
+    console.log(existingUser);
     if (existingUser) {
       return next(
         createError('Conflict: User with that email already exists', 409)
@@ -167,12 +195,17 @@ export const registerUser = async (req, res, next) => {
       first_name,
       last_name,
       role_id: parseInt(role_id),
-      profile_image: '/' + req.file?.path?.replace(/[\\]/g, '/') || null,
+      profile_image: req.file?.path?.replace(/[\\]/g, '/') || null,
+      bio: '',
     };
 
+    newUser.profile_image = newUser.profile_image
+      ? '/' + newUser.profile_image
+      : newUser.profile_image;
+
     // Add user to array
-    users.push(newUser);
-    console.log('New user registered:', { email, first_name, last_name });
+    const user = await createNewUser(newUser);
+    console.log('New user registered:', user);
 
     // Generate token
     const token = await generateToken({ user: newUser });

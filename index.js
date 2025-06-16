@@ -46,7 +46,7 @@ app.use(
 /* Routers */
 app.use('/user', users);
 
-app.get('/test', verifyToken, (req, res) => {
+app.get('/test', verifyToken, (req, res, next) => {
   console.log('test');
   jwt.verify(req.token, SECRET_KEY, (err, authData) => {
     if (err) {
