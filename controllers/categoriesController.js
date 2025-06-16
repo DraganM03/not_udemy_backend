@@ -23,9 +23,9 @@ export const getCategories = async (req, res, next) => {
 };
 
 /**
- * Add categorie
+ * Add category
  */
-export const addCategories = async (req, res, next) => {
+export const addCategory = async (req, res, next) => {
   try {
     const category = {
       name: req.body.name,
