@@ -9,6 +9,7 @@ import errorHandler from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 
 import users from './routes/users.js';
+import categories from './routes/categories.js';
 import { verifyToken } from './middleware/verifyToken.js';
 
 /**
@@ -45,6 +46,7 @@ app.use(
 
 /* Routers */
 app.use('/user', users);
+app.use('/categories', categories);
 
 app.get('/test', verifyToken, (req, res, next) => {
   console.log('test');
