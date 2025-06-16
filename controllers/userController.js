@@ -218,3 +218,80 @@ export const registerUser = async (req, res, next) => {
     return next(error);
   }
 };
+
+/**
+ * Update users first_name, last_name, bio, profile_image, role_id and/or password
+ */
+export const updateUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { first_name, last_name, bio, role_id, password } = req.body;
+
+    // Verify JWT and extract user id
+    let userId;
+    try {
+      const decoded = jwt.verify(req.token, SECRET_KEY);
+      userId = decoded.user?.id || decoded.id;
+    } catch (err) {
+      return next(createError('Invalid or expired token', 401));
+    }
+
+    // Only allow the logged-in user to update their own profile
+    if (parseInt(id) !== parseInt(userId)) {
+      return next(
+        createError('Forbidden: You can only update your own profile.', 403)
+      );
+    }
+
+    const fields = [];
+    const values = [];
+
+    if (first_name !== undefined) {
+      fields.push('first_name = ?');
+      values.push(first_name);
+    }
+    if (last_name !== undefined) {
+      fields.push('last_name = ?');
+      values.push(last_name);
+    }
+    if (bio !== undefined) {
+      fields.push('bio = ?');
+      values.push(bio);
+    }
+    if (role_id !== undefined) {
+      fields.push('role_id = ?');
+      values.push(role_id);
+    }
+    if (password !== undefined) {
+      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+      fields.push('password = ?');
+      values.push(hashedPassword);
+    }
+
+    let profile_image = req.file?.path?.replace(/[\\]/g, '/') || null;
+    profile_image = profile_image ? '/' + profile_image : profile_image;
+    if (profile_image !== null) {
+      fields.push('profile_image = ?');
+      values.push(profile_image);
+    }
+
+    if (fields.length === 0) {
+      return next(createError('No fields to update.', 400));
+    }
+
+    values.push(id);
+
+    const [result] = await pool.query(
+      `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    if (result.affectedRows === 0) {
+      return next(createError('User not found.', 404));
+    }
+
+    res.status(200).json({ message: 'User updated successfully.' });
+  } catch (error) {
+    next(createError(error.message || 'Internal server error', 500));
+  }
+};
