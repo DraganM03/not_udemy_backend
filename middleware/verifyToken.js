@@ -9,15 +9,11 @@ export const verifyToken = (req, res, next) => {
 
   const token = authHeader.split(' ')[1];
 
-  jwt.verify(
-    token,
-    process.env.JWT_SECRET || 'your_super_secret_key',
-    (err, user) => {
-      if (err) return next(createError(403, 'Token is not valid!'));
-      req.user = user; // Attaches user payload (e.g., id, role) to the request
-      next();
-    }
-  );
+  jwt.verify(token, process.env.SECRET_KEY, (err, user) => {
+    if (err) return next(createError(403, 'Token is not valid!'));
+    req.user = user; // Attaches user payload (e.g., id, role) to the request
+    next();
+  });
 };
 
 export const verifyInstructor = (req, res, next) => {
