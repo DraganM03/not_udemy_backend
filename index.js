@@ -12,6 +12,7 @@ import logger from './middleware/logger.js';
 import userRoutes from './routes/users.js';
 import categoryRoutes from './routes/categories.js';
 import courseRouter from './routes/courses.js';
+import enrollmentRouter from './routes/enrollments.js';
 import { verifyToken } from './middleware/verifyToken.js';
 
 /**
@@ -43,6 +44,7 @@ app.use('/static', express.static('static'));
 app.use('/api/users', userRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/courses', courseRouter);
+app.use('/api/enrollments', enrollmentRouter);
 
 app.get('/test', verifyToken, (req, res, next) => {
   console.log('test');
