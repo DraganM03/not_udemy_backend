@@ -66,7 +66,7 @@ CREATE TABLE lessons (
   course_id INT NOT NULL,
   title VARCHAR(255) NOT NULL,
   description TEXT,
-  video_url VARCHAR(255),
+  video_path VARCHAR(255) DEFAULT NULL,
   video_duration_seconds INT DEFAULT 0,
   order_index INT NOT NULL,
   is_free BOOLEAN DEFAULT FALSE,
