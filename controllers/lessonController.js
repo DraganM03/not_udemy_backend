@@ -1,0 +1,170 @@
+import pool from '../database.js';
+import { createError } from '../utils/error.js';
+
+// Add a lesson to a course
+export const addLesson = async (req, res, next) => {
+  try {
+    const {
+      course_id,
+      title,
+      description,
+      video_duration_seconds,
+      order_index,
+      is_free,
+    } = req.body;
+    const instructor_id = req.user.id;
+
+    // --- NEW: Handle video file upload ---
+    // The path to the uploaded video file will be stored.
+    // If a file is uploaded, use its path. If not, video_path remains null.
+    const video_path = req.file ? `videos/lessons/${req.file.filename}` : null;
+
+    // Verify instructor owns the course
+    const [courseCheck] = await pool.query(
+      'SELECT instructor_id FROM courses WHERE id = ?',
+      [course_id]
+    );
+    if (
+      courseCheck.length === 0 ||
+      (courseCheck[0].instructor_id !== instructor_id && req.user.role_id !== 3)
+    ) {
+      return next(
+        createError(403, 'You can only add lessons to your own courses.')
+      );
+    }
+
+    const sql = `
+            INSERT INTO lessons (course_id, title, description,  video_path, video_duration_seconds, order_index, is_free)
+            VALUES (?, ?, ?, ?,  ?, ?, ?)
+        `;
+    const [result] = await pool.query(sql, [
+      course_id,
+      title,
+      description,
+      video_path,
+      video_duration_seconds,
+      order_index,
+      is_free,
+    ]);
+
+    res.status(201).json({
+      message: 'Lesson added successfully',
+      lessonId: result.insertId,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Update a lesson
+export const updateLesson = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      description,
+      video_url,
+      video_duration_seconds,
+      order_index,
+      is_free,
+    } = req.body;
+    const instructor_id = req.user.id;
+
+    // --- NEW: Handle video file update ---
+    // If a new video is uploaded, it will replace the old path.
+    const video_path = req.file
+      ? `videos/lessons/${req.file.filename}`
+      : req.body.video_path;
+
+    // Verify instructor owns the course this lesson belongs to
+    const [lessonCheck] = await pool.query(
+      `
+            SELECT c.instructor_id FROM lessons l
+            JOIN courses c ON l.course_id = c.id
+            WHERE l.id = ?
+        `,
+      [id]
+    );
+
+    if (
+      lessonCheck.length === 0 ||
+      (lessonCheck[0].instructor_id !== instructor_id && req.user.role_id !== 3)
+    ) {
+      return next(
+        createError(403, 'You are not authorized to update this lesson.')
+      );
+    }
+
+    // Note: You might want to add logic here to delete the old video file from the server
+    // when a new one is uploaded to save space.
+
+    const sql = `
+            UPDATE lessons SET title = ?, description = ?, video_url = ?, video_path = ?, video_duration_seconds = ?, order_index = ?, is_free = ?
+            WHERE id = ?
+        `;
+    await pool.query(sql, [
+      title,
+      description,
+      video_url,
+      video_path,
+      video_duration_seconds,
+      order_index,
+      is_free,
+      id,
+    ]);
+
+    res.status(200).json({ message: 'Lesson updated successfully.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Delete a lesson
+export const deleteLesson = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const instructor_id = req.user.id;
+
+    // Verify instructor owns the course this lesson belongs to
+    const [lessonCheck] = await pool.query(
+      `
+            SELECT c.instructor_id, l.video_path FROM lessons l
+            JOIN courses c ON l.course_id = c.id
+            WHERE l.id = ?
+        `,
+      [id]
+    );
+
+    if (
+      lessonCheck.length === 0 ||
+      (lessonCheck[0].instructor_id !== instructor_id && req.user.role_id !== 3)
+    ) {
+      return next(
+        createError(403, 'You are not authorized to delete this lesson.')
+      );
+    }
+
+    // Note: You should add logic here to delete the video file from the filesystem
+    // using the `lessonCheck[0].video_path` to prevent orphaned files.
+    // Example: import fs from 'fs'; fs.unlinkSync(path.join(__dirname, '..', 'static', lessonCheck[0].video_path));
+
+    await pool.query('DELETE FROM lessons WHERE id = ?', [id]);
+    res.status(200).json({ message: 'Lesson deleted successfully.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Get all lessons for a specific course
+export const getLessonsForCourse = async (req, res, next) => {
+  try {
+    const { courseId } = req.params;
+    const [lessons] = await pool.query(
+      'SELECT id, title, description, video_url, video_path, video_duration_seconds, order_index, is_free FROM lessons WHERE course_id = ? ORDER BY order_index ASC',
+      [courseId]
+    );
+    res.status(200).json(lessons);
+  } catch (err) {
+    next(err);
+  }
+};

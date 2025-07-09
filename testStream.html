@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Secure Video Streaming</title>
+  </head>
+  <body>
+    <h1>Protected Video Lesson</h1>
+    <video id="lessonVideo" controls width="800">
+      Your browser does not support the video tag.
+    </video>
+
+    <script>
+      // Assume you have stored the JWT in localStorage after the user logged in.
+      const jwtToken =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwicm9sZV9pZCI6Miwicm9sZV9uYW1lIjoiaW5zdHJ1Y3RvciIsImlhdCI6MTc1MjA5NjA1OSwiZXhwIjoxNzUyMTgyNDU5fQ.1t6o4zbGWfYqZ3szLPKeGcnBHtKkefwN4YAXTpereO8';
+      const lessonId = 1; // The ID of the lesson you want to stream
+
+      const videoElement = document.getElementById('lessonVideo');
+      const videoStreamUrl = `http://localhost:8000/api/lessons/stream/${lessonId}`;
+
+      if (jwtToken) {
+        fetch(videoStreamUrl, {
+          method: 'GET',
+          headers: {
+            // This is where you pass the token to the backend
+            Authorization: `Bearer ${jwtToken}`,
+          },
+        })
+          .then((response) => {
+            if (!response.ok) {
+              // Handle errors, e.g., if the token is invalid or expired
+              throw new Error(
+                'Network response was not ok. Status: ' + response.status
+              );
+            }
+            // Convert the response into a Blob (a file-like object)
+            return response.blob();
+          })
+          .then((videoBlob) => {
+            // Create a temporary URL from the Blob
+            const videoObjectUrl = URL.createObjectURL(videoBlob);
+            // Set the video element's source to this new, local URL
+            videoElement.src = videoObjectUrl;
+          })
+          .catch((error) => {
+            console.error('There was a problem fetching the video:', error);
+            // You could display an error message to the user here
+          });
+      } else {
+        console.error('No JWT token found. User must be logged in.');
+        // Handle case where user is not logged in
+      }
+    </script>
+  </body>
+</html>
