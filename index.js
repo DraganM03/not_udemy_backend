@@ -8,8 +8,9 @@ import notFound from './middleware/notFound.js';
 import errorHandler from './middleware/errorHandler.js';
 import logger from './middleware/logger.js';
 
-import users from './routes/users.js';
-import categories from './routes/categories.js';
+// Import Routes
+import userRoutes from './routes/users.js';
+import categoryRoutes from './routes/categories.js';
 import { verifyToken } from './middleware/verifyToken.js';
 
 /**
@@ -26,27 +27,20 @@ const app = express();
 /* Server Middleware */
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(logger);
 
+/* Server Activity Check */
+app.get('/', (req, res) => {
+  res.send('Udemy Clone API is running...');
+});
+
 /* Static Routes */
-app.use(
-  '/static/images',
-  express.static(path.join(__dirname, 'static/images/'))
-);
-
-app.use(
-  '/static/thumbnails',
-  express.static(path.join(__dirname, 'static/thumbnails/'))
-);
-
-app.use(
-  '/static/videos',
-  express.static(path.join(__dirname, 'static/videos/'))
-);
+app.use('/static', express.static('static'));
 
 /* Routers */
-app.use('/user', users);
-app.use('/categories', categories);
+app.use('/api/users', userRoutes);
+app.use('/api/categories', categoryRoutes);
 
 app.get('/test', verifyToken, (req, res, next) => {
   console.log('test');

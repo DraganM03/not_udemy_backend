@@ -1,298 +1,157 @@
-import jwt from 'jsonwebtoken';
-import bcrypt, { genSalt } from 'bcrypt';
 import pool from '../database.js';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { createError } from '../utils/error.js';
 
-const SECRET_KEY = process.env.SECRET_KEY;
-const SALT_ROUNDS = 12;
-const TOKEN_EXPIRY = '24h';
-
-/**
- *  Helper function to validate required fields
- */
-const validateRequiredFields = (body, requiredFields) => {
-  const missingFields = requiredFields.filter((field) => !body || !body[field]);
-  return {
-    isValid: missingFields.length === 0,
-    missingFields,
-  };
-};
-
-/**
- * Create error with status
- */
-const createError = (message, status) => {
-  const error = new Error(message);
-  error.status = status;
-  return error;
-};
-
-/**
- * Generate JWT token
- */
-const generateToken = (payload) => {
-  return new Promise((resolve, reject) => {
-    jwt.sign(
-      payload,
-      SECRET_KEY,
-      { expiresIn: TOKEN_EXPIRY },
-      (error, token) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(token);
-        }
-      }
-    );
-  });
-};
-
-/**
- *  Verify password
- */
-const verifyPassword = async (plainPassword, hashedPassword) => {
-  return bcrypt.compare(plainPassword, hashedPassword);
-};
-
-/**
- *  Process file path for consistent format
- */
-const processFilePath = (filePath) => {
-  if (!filePath) return null;
-  const normalizedPath = filePath.replace(/[\\]/g, '/');
-  return '/' + normalizedPath;
-};
-
-/**
- * Find user by email
- */
-const findUserByEmail = async (email) => {
-  const [rows] = await pool.query(
-    `SELECT 
-      users.id, 
-      users.email,
-      users.password,
-      users.bio, 
-      users.first_name, 
-      users.last_name, 
-      users.profile_image, 
-      roles.name AS role_name
-    FROM users
-    INNER JOIN roles ON users.role_id = roles.id
-    WHERE users.email = ?`,
-    [email]
-  );
-  return rows[0] || null;
-};
-
-/**
- *  Insert a new user into the database
- */
-const createNewUser = async (newUser) => {
-  const params = [
-    newUser.email,
-    newUser.password,
-    newUser.first_name,
-    newUser.last_name,
-    newUser.role_id,
-    newUser.profile_image,
-    newUser.bio,
-  ];
-
-  return pool.query(
-    `INSERT INTO users(email, password, first_name, last_name, role_id, profile_image, bio)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    params
-  );
-};
-
-/**
- * Authenticates the user and returns the JWT if successful
- */
-export const loginUser = async (req, res, next) => {
-  try {
-    const { email, password } = req.body || {};
-
-    // Validate required fields
-    const validation = validateRequiredFields(req.body, ['email', 'password']);
-    if (!validation.isValid) {
-      return next(
-        createError('Bad Request: Email and password are required', 400)
-      );
-    }
-
-    // Find user by email
-    const user = await findUserByEmail(email);
-    console.log('Login attempt for user:', user?.email);
-
-    if (!user) {
-      return next(
-        createError(
-          "Unauthorized: User with those credentials doesn't exist",
-          401
-        )
-      );
-    }
-
-    // Verify password
-    const isPasswordValid = await verifyPassword(password, user.password);
-    if (!isPasswordValid) {
-      return next(
-        createError(
-          "Unauthorized: User with those credentials doesn't exist",
-          401
-        )
-      );
-    }
-
-    // Generate token
-    const token = await generateToken({ user });
-    res.status(200).json({ token });
-  } catch (error) {
-    return next(error);
-  }
-};
-
-/**
- * Register a new user and returns a JWT
- */
+// User Registration
 export const registerUser = async (req, res, next) => {
   try {
-    const { email, password, first_name, last_name, role_id } = req.body || {};
-    const requiredFields = [
-      'email',
-      'password',
-      'first_name',
-      'last_name',
-      'role_id',
-    ];
+    const roles = ['student', 'instructor'];
+    const { email, password, first_name, last_name, bio, role_id } = req.body;
+    const profile_image = req.file ? req.file.path : null;
 
-    // Validate required fields
-    const validation = validateRequiredFields(req.body, requiredFields);
-    if (!validation.isValid) {
-      const errorMessage = `Bad Request: The following user fields (${requiredFields.join(
-        ', '
-      )}) are required.`;
-      return next(createError(errorMessage, 400));
+    // Fields check
+    if (!email || !password || !first_name || !last_name || !role_id) {
+      return next(createError(400, 'Please provide all required fields.'));
     }
 
-    // Check if user already exists
-    const existingUser = await findUserByEmail(email);
-    console.log('Registration check - user exists:', !!existingUser);
+    // Public users can register as students (1) or instructors (2).
+    // The admin role (3) must be granted manually. Default to student.
+    const validRoleId =
+      role_id && [1, 2].includes(parseInt(role_id)) ? parseInt(role_id, 10) : 1;
 
-    if (existingUser) {
-      return next(
-        createError('Conflict: User with that email already exists', 409)
-      );
+    // Check if user already exists
+    const [existingUser] = await pool.query(
+      'SELECT id FROM users WHERE email = ?',
+      [email]
+    );
+    if (existingUser.length > 0) {
+      return next(createError(409, 'User with this email already exists.'));
     }
 
     // Hash password
-    const salt = await genSalt(SALT_ROUNDS);
+    const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create new user object
-    const newUser = {
-      email,
-      password: hashedPassword,
-      first_name,
-      last_name,
-      role_id: parseInt(role_id),
-      profile_image: processFilePath(req.file?.path),
-      bio: '',
-    };
+    // Insert user into database with the specified or default role_id
+    const [result] = await pool.query(
+      `INSERT INTO users (email, password, first_name, last_name, role_id, profile_image, bio)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        email,
+        hashedPassword,
+        first_name,
+        last_name,
+        validRoleId,
+        profile_image.replace(/\\/g, '/'),
+        bio,
+      ]
+    );
 
-    // Add user to database
-    const result = await createNewUser(newUser);
-    console.log('New user registered:', email);
+    // Create and sign JWT
+    const token = jwt.sign(
+      {
+        id: result.insertId,
+        role_id: validRoleId,
+        role_name: roles[validRoleId - 1],
+      },
+      process.env.SECRET_KEY,
+      {
+        expiresIn: '1d',
+      }
+    );
 
-    // Generate token
-    const token = await generateToken({ user: newUser });
-
+    // Response
     res.status(201).json({
       message: 'User registered successfully',
+      userId: result.insertId,
       token,
     });
-  } catch (error) {
-    return next(error);
+  } catch (err) {
+    next(err);
   }
 };
 
-/**
- * Update users first_name, last_name, bio, profile_image, role_id and/or password
- */
-export const updateUser = async (req, res, next) => {
+// User Login
+export const loginUser = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { first_name, last_name, bio, role_id, password } = req.body;
-
-    // Verify JWT and extract user id
-    let userId;
-    try {
-      const decoded = jwt.verify(req.token, SECRET_KEY);
-      userId = decoded.user?.id || decoded.id;
-    } catch (err) {
-      return next(createError('Invalid or expired token', 401));
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return next(createError(400, 'Please provide email and password.'));
     }
 
-    // Only allow the logged-in user to update their own profile
-    if (parseInt(id) !== parseInt(userId)) {
-      return next(
-        createError('Forbidden: You can only update your own profile.', 403)
-      );
+    // Find user by email, also join with roles table
+    const [users] = await pool.query(
+      `SELECT u.*, r.name as role_name 
+           FROM users u 
+           JOIN roles r ON u.role_id = r.id 
+           WHERE u.email = ?`,
+      [email]
+    );
+    if (users.length === 0) {
+      return next(createError(404, 'User not found.'));
+    }
+    const user = users[0];
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return next(createError(401, 'Invalid credentials.'));
     }
 
-    // Build dynamic update fields
-    const fields = [];
+    // Create and sign JWT
+    const payload = {
+      id: user.id,
+      role_id: user.role_id,
+      role_name: user.role_name,
+    };
+    const token = jwt.sign(payload, process.env.SECRET_KEY, {
+      expiresIn: '1d',
+    });
+
+    // Separate password from the rest of the user data to not send it back
+    const { password: userPassword, ...userInfo } = user;
+
+    res.status(200).json({ token, user: userInfo });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Update User Profile
+export const updateUser = async (req, res, next) => {
+  // Ensure user can only update their own profile unless they are an admin
+  if (req.user.id !== parseInt(req.params.id) && req.user.role_id !== 3) {
+    return next(createError(403, 'You can only update your own account!'));
+  }
+
+  try {
+    const { first_name, last_name, bio } = req.body;
+    const profile_image = req.file ? req.file.path : req.body.profile_image;
+
+    const fieldsToUpdate = { first_name, last_name, bio, profile_image };
+    const updates = [];
     const values = [];
 
-    if (first_name !== undefined) {
-      fields.push('first_name = ?');
-      values.push(first_name);
-    }
-    if (last_name !== undefined) {
-      fields.push('last_name = ?');
-      values.push(last_name);
-    }
-    if (bio !== undefined) {
-      fields.push('bio = ?');
-      values.push(bio);
-    }
-    if (role_id !== undefined) {
-      fields.push('role_id = ?');
-      values.push(role_id);
-    }
-    if (password !== undefined) {
-      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-      fields.push('password = ?');
-      values.push(hashedPassword);
+    for (const [key, value] of Object.entries(fieldsToUpdate)) {
+      if (value !== undefined) {
+        updates.push(`${key} = ?`);
+        values.push(value);
+      }
     }
 
-    // Handle profile image
-    const profile_image = processFilePath(req.file?.path);
-    if (profile_image !== null) {
-      fields.push('profile_image = ?');
-      values.push(profile_image);
+    if (updates.length === 0) {
+      return res.status(200).json({ message: 'No fields to update.' });
     }
 
-    // Check if there are fields to update
-    if (fields.length === 0) {
-      return next(createError('No fields to update.', 400));
-    }
+    values.push(req.params.id); // for the WHERE clause
 
-    // Add user id for WHERE clause
-    values.push(id);
+    const sql = `UPDATE users SET ${updates.join(', ')} WHERE id = ?`;
 
-    // Execute update query
-    const [result] = await pool.query(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
+    await pool.query(sql, values);
 
-    if (result.affectedRows === 0) {
-      return next(createError('User not found.', 404));
-    }
-
-    res.status(200).json({ message: 'User updated successfully.' });
-  } catch (error) {
-    next(createError(error.message || 'Internal server error', 500));
+    res.status(200).json({ message: 'Profile updated successfully.' });
+  } catch (err) {
+    next(err);
   }
 };
