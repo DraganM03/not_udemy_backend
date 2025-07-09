@@ -8,7 +8,7 @@ export const registerUser = async (req, res, next) => {
   try {
     const roles = ['student', 'instructor'];
     const { email, password, first_name, last_name, bio, role_id } = req.body;
-    const profile_image = req.file ? req.file.path : null;
+    let profile_image = req.file ? req.file.path : null;
 
     // Fields check
     if (!email || !password || !first_name || !last_name || !role_id) {
@@ -32,7 +32,9 @@ export const registerUser = async (req, res, next) => {
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-
+    profile_image = profile_image
+      ? profile_image.replace(/\\/g, '/')
+      : profile_image;
     // Insert user into database with the specified or default role_id
     const [result] = await pool.query(
       `INSERT INTO users (email, password, first_name, last_name, role_id, profile_image, bio)
@@ -43,7 +45,7 @@ export const registerUser = async (req, res, next) => {
         first_name,
         last_name,
         validRoleId,
-        profile_image.replace(/\\/g, '/'),
+        profile_image,
         bio,
       ]
     );
@@ -127,7 +129,10 @@ export const updateUser = async (req, res, next) => {
 
   try {
     const { first_name, last_name, bio } = req.body;
-    const profile_image = req.file ? req.file.path : req.body.profile_image;
+    let profile_image = req.file ? req.file.path : req.body.profile_image;
+    profile_image = profile_image
+      ? profile_image.replace(/\\/g, '/')
+      : profile_image;
 
     const fieldsToUpdate = { first_name, last_name, bio, profile_image };
     const updates = [];
