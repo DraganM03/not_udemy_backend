@@ -119,6 +119,42 @@ export const updateLesson = async (req, res, next) => {
   }
 };
 
+// Update the order of lessons
+export const updateLessonOrder = async (req, res, next) => {
+  const { lessons } = req.body; // Expects an array of { id, order_index }
+
+  if (!lessons || !Array.isArray(lessons)) {
+    return next(
+      createError(400, "Invalid payload. 'lessons' array is required.")
+    );
+  }
+
+  const connection = await pool.getConnection(); // Get a connection from the pool for the transaction
+
+  try {
+    await connection.beginTransaction(); // Start the transaction
+
+    // Create an array of promises for all the update queries
+    const updatePromises = lessons.map((lesson) => {
+      return connection.query(
+        'UPDATE lessons SET order_index = ? WHERE id = ?',
+        [lesson.order_index, lesson.id]
+      );
+    });
+
+    // Execute all update queries in parallel
+    await Promise.all(updatePromises);
+
+    await connection.commit(); // If all updates succeed, commit the transaction
+    res.status(200).json({ message: 'Lesson order updated successfully.' });
+  } catch (err) {
+    await connection.rollback(); // If any update fails, roll back the entire transaction
+    next(err);
+  } finally {
+    connection.release(); // Release the connection back to the pool
+  }
+};
+
 // Delete a lesson
 export const deleteLesson = async (req, res, next) => {
   try {

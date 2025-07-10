@@ -5,6 +5,7 @@ import {
   updateLesson,
   deleteLesson,
   getLessonsForCourse,
+  updateLessonOrder,
 } from '../controllers/lessonController.js';
 import { streamVideo } from '../controllers/videoStream.js';
 import { verifyInstructor, verifyToken } from '../middleware/verifyToken.js';
@@ -43,6 +44,7 @@ router.get('/stream/:lessonId', verifyToken, streamVideo);
 
 router.get('/course/:courseId', getLessonsForCourse);
 
+router.patch('/order', verifyInstructor, updateLessonOrder);
 router.post('/', verifyInstructor, uploadVideo.single('video'), addLesson);
 router.patch(
   '/:id',
