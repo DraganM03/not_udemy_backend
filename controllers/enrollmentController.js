@@ -50,6 +50,25 @@ export const getUserEnrolledCourses = async (req, res, next) => {
   }
 };
 
+// Check if a user is enrolled in a specific course
+export const getEnrollmentStatus = async (req, res, next) => {
+  try {
+    const { courseId } = req.params;
+    const user_id = req.user.id;
+
+    const sql = `SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?`;
+    const [enrollment] = await pool.query(sql, [user_id, courseId]);
+
+    if (enrollment.length > 0) {
+      res.status(200).json({ isEnrolled: true });
+    } else {
+      res.status(200).json({ isEnrolled: false });
+    }
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Update lesson progress for a user
 export const updateLessonProgress = async (req, res, next) => {
   try {
