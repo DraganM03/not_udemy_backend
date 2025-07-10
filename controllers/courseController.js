@@ -42,6 +42,29 @@ export const getAllCourses = async (req, res, next) => {
   }
 };
 
+// Get all courses for the currently authenticated instructor
+export const getInstructorCourses = async (req, res, next) => {
+  try {
+    const instructor_id = req.user.id; // Get instructor ID from JWT payload
+
+    // SQL query to get all courses for a specific instructor, including drafts and archived
+    const sql = `
+            SELECT
+                c.id, c.title, c.status,
+                cat.name AS category_name
+            FROM courses c
+            LEFT JOIN categories cat ON c.category_id = cat.id
+            WHERE c.instructor_id = ?
+            ORDER BY c.created_at DESC
+        `;
+
+    const [courses] = await pool.query(sql, [instructor_id]);
+    res.status(200).json(courses);
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Get a single course by ID with its lessons
 export const getCourseById = async (req, res, next) => {
   try {

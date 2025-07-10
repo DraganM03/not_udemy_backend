@@ -6,6 +6,7 @@ import {
   createCourse,
   updateCourse,
   deleteCourse,
+  getInstructorCourses,
 } from '../controllers/courseController.js';
 import { verifyInstructor } from '../middleware/verifyToken.js';
 
@@ -27,6 +28,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 router.get('/', getAllCourses);
+router.get('/instructor', verifyInstructor, getInstructorCourses);
 router.get('/:id', getCourseById);
 router.post('/', verifyInstructor, upload.single('thumbnail'), createCourse);
 router.patch(
