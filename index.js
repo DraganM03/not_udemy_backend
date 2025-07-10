@@ -14,6 +14,7 @@ import categoryRoutes from './routes/categories.js';
 import courseRouter from './routes/courses.js';
 import enrollmentRouter from './routes/enrollments.js';
 import lessonRouter from './routes/lessons.js';
+import reviewRoutes from './routes/reviews.js';
 import { verifyToken } from './middleware/verifyToken.js';
 
 /**
@@ -47,6 +48,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/courses', courseRouter);
 app.use('/api/enrollments', enrollmentRouter);
 app.use('/api/lessons', lessonRouter);
+app.use('/api/reviews', reviewRoutes);
 
 app.get('/test', verifyToken, (req, res, next) => {
   console.log('test');
