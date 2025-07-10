@@ -63,7 +63,7 @@ export const updateLesson = async (req, res, next) => {
     const {
       title,
       description,
-      video_url,
+      videp_path,
       video_duration_seconds,
       order_index,
       is_free,
@@ -99,13 +99,12 @@ export const updateLesson = async (req, res, next) => {
     // when a new one is uploaded to save space.
 
     const sql = `
-            UPDATE lessons SET title = ?, description = ?, video_url = ?, video_path = ?, video_duration_seconds = ?, order_index = ?, is_free = ?
+            UPDATE lessons SET title = ?, description = ?,  video_path = ?, video_duration_seconds = ?, order_index = ?, is_free = ?
             WHERE id = ?
         `;
     await pool.query(sql, [
       title,
       description,
-      video_url,
       video_path,
       video_duration_seconds,
       order_index,
@@ -196,7 +195,7 @@ export const getLessonsForCourse = async (req, res, next) => {
   try {
     const { courseId } = req.params;
     const [lessons] = await pool.query(
-      'SELECT id, title, description, video_url, video_path, video_duration_seconds, order_index, is_free FROM lessons WHERE course_id = ? ORDER BY order_index ASC',
+      'SELECT id, title, description, video_path, video_duration_seconds, order_index, is_free FROM lessons WHERE course_id = ? ORDER BY order_index ASC',
       [courseId]
     );
     res.status(200).json(lessons);
