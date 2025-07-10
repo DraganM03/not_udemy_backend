@@ -51,7 +51,8 @@ export const getInstructorCourses = async (req, res, next) => {
     const sql = `
             SELECT
                 c.id, c.title, c.status,
-                cat.name AS category_name
+                cat.name AS category_name,
+                c.thumbnail
             FROM courses c
             LEFT JOIN categories cat ON c.category_id = cat.id
             WHERE c.instructor_id = ?
