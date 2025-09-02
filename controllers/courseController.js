@@ -10,6 +10,7 @@ export const getAllCourses = async (req, res, next) => {
         cat.name AS category_name,
         lvl.name AS level_name,
         CONCAT(u.first_name, ' ', u.last_name) AS instructor_name,
+        u.id AS instructor_id,
         (SELECT AVG(r.rating) FROM reviews r WHERE r.course_id = c.id) as average_rating
       FROM courses c
       JOIN categories cat ON c.category_id = cat.id
@@ -17,7 +18,9 @@ export const getAllCourses = async (req, res, next) => {
       JOIN users u ON c.instructor_id = u.id
       WHERE c.status = 'published'
     `;
-    const params = []; // Filtering logic
+
+    // Filtering logic
+    const params = [];
 
     if (req.query.category) {
       sql += ' AND cat.name = ?';
