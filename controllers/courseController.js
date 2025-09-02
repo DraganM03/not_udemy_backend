@@ -1,12 +1,3 @@
-/*
-================================================================================
-📁 controllers/courseController.js (CORRECTED)
-================================================================================
-The getCourseById function has been updated to include `video_path` in the
-SQL query that fetches the lessons for a course. This will resolve the issue
-on the WatchCoursePage.
-*/
-
 import pool from '../database.js';
 import { createError } from '../utils/error.js';
 
@@ -53,7 +44,7 @@ export const getAllCourses = async (req, res, next) => {
 // Get all courses for the currently authenticated instructor
 export const getInstructorCourses = async (req, res, next) => {
   try {
-    const instructor_id = req.user.id; // Get instructor ID from JWT payload // SQL query to get all courses for a specific instructor, including drafts and archived
+    const instructor_id = req.user.id;
 
     const sql = `
       SELECT
