@@ -14,9 +14,7 @@ export const addLesson = async (req, res, next) => {
     } = req.body;
     const instructor_id = req.user.id;
 
-    // --- NEW: Handle video file upload ---
-    // The path to the uploaded video file will be stored.
-    // If a file is uploaded, use its path. If not, video_path remains null.
+    // Handle video file upload
     const video_path = req.file ? `videos/lessons/${req.file.filename}` : null;
 
     // Verify instructor owns the course
@@ -70,8 +68,7 @@ export const updateLesson = async (req, res, next) => {
     } = req.body;
     const instructor_id = req.user.id;
 
-    // --- NEW: Handle video file update ---
-    // If a new video is uploaded, it will replace the old path.
+    // If a new video is uploaded, replace the old path.
     const video_path = req.file
       ? `videos/lessons/${req.file.filename}`
       : req.body.video_path;
@@ -95,9 +92,6 @@ export const updateLesson = async (req, res, next) => {
       );
     }
 
-    // Note: You might want to add logic here to delete the old video file from the server
-    // when a new one is uploaded to save space.
-
     const sql = `
             UPDATE lessons SET title = ?, description = ?,  video_path = ?, video_duration_seconds = ?, order_index = ?, is_free = ?
             WHERE id = ?
@@ -120,7 +114,7 @@ export const updateLesson = async (req, res, next) => {
 
 // Update the order of lessons
 export const updateLessonOrder = async (req, res, next) => {
-  const { lessons } = req.body; // Expects an array of { id, order_index }
+  const { lessons } = req.body;
 
   if (!lessons || !Array.isArray(lessons)) {
     return next(
@@ -128,7 +122,7 @@ export const updateLessonOrder = async (req, res, next) => {
     );
   }
 
-  const connection = await pool.getConnection(); // Get a connection from the pool for the transaction
+  const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction(); // Start the transaction
@@ -178,10 +172,6 @@ export const deleteLesson = async (req, res, next) => {
         createError(403, 'You are not authorized to delete this lesson.')
       );
     }
-
-    // Note: You should add logic here to delete the video file from the filesystem
-    // using the `lessonCheck[0].video_path` to prevent orphaned files.
-    // Example: import fs from 'fs'; fs.unlinkSync(path.join(__dirname, '..', 'static', lessonCheck[0].video_path));
 
     await pool.query('DELETE FROM lessons WHERE id = ?', [id]);
     res.status(200).json({ message: 'Lesson deleted successfully.' });

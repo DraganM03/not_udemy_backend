@@ -70,7 +70,7 @@ export const streamVideo = async (req, res, next) => {
         'Content-Length': fileSize,
         'Content-Type': 'video/mp4',
       };
-      res.writeHead(200, head); // 200 OK
+      res.writeHead(200, head);
       fs.createReadStream(absoluteVideoPath).pipe(res); // Pipe the entire file
     }
   } catch (err) {
