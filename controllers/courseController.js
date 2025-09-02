@@ -90,7 +90,6 @@ export const getCourseById = async (req, res, next) => {
     }
     const course = courseResult[0]; // Get lessons for the course
 
-    // --- FIX: Added `video_path` to the SELECT statement ---
     const lessonsSql = `SELECT id, title, description, video_path, video_duration_seconds, order_index, is_free FROM lessons WHERE course_id = ? ORDER BY order_index`;
     const [lessons] = await pool.query(lessonsSql, [id]);
 
